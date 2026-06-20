@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>machi-machi | 週末・休日遊びプラン</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #ec4899;
+    border-radius: 50%;
+    width: 24px; height: 24px;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .modal-overlay { background: rgba(0,0,0,0.5); }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+</style>
+</head>
+<body class="bg-pink-50 min-h-screen text-gray-800">
+
+<!-- ===================== 設定 ===================== -->
+<script>
+  // ここにデプロイ済みGASウェブアプリのURLを設定してください
+  const API_URL = 'https://script.google.com/macros/s/AKfycbxB2bdk9q6jPbMiXDf1IgWDv_n-7N_icf7HQZojixJsnMXPJFuUELfjS6h0roEnm8hP/exec';
+</script>
+
+<!-- ===================== ヘッダー ===================== -->
+<header class="bg-white shadow-sm sticky top-0 z-40">
+  <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <span class="text-2xl">💞</span>
+      <span class="text-lg font-bold text-pink-600">machi-machi</span>
+    </div>
+    <nav class="hidden sm:flex items-center gap-4 text-sm">
+      <button onclick="showScreen('events')" class="nav-link hover:text-pink-600" data-auth="true">イベント</button>
+      <button onclick="showScreen('matching')" class="nav-link hover:text-pink-600" data-auth="true">イベントマッチ</button>
+      <button onclick="showScreen('mypage')" class="nav-link hover:text-pink-600" data-auth="true">マイページ</button>
+      <button onclick="openHelpModal()" class="text-gray-500 hover:text-pink-600">使い方</button>
+      <button onclick="logout()" class="text-gray-500 hover:text-pink-600" data-auth="true">ログアウト</button>
+    </nav>
+    <button class="sm:hidden" onclick="toggleMobileMenu()">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+  </div>
+  <div id="mobileMenu" class="hidden sm:hidden bg-white border-t px-4 py-3 space-y-2 text-sm">
+    <button onclick="showScreen('events'); toggleMobileMenu()" class="block w-full text-left nav-link" data-auth="true">イベント</button>
+    <button onclick="showScreen('matching'); toggleMobileMenu()" class="block w-full text-left nav-link" data-auth="true">イベントマッチ</button>
+    <button onclick="showScreen('mypage'); toggleMobileMenu()" class="block w-full text-left nav-link" data-auth="true">マイページ</button>
+    <button onclick="openHelpModal(); toggleMobileMenu()" class="block w-full text-left text-gray-500">使い方</button>
+    <button onclick="logout()" class="block w-full text-left text-gray-500" data-auth="true">ログアウト</button>
+  </div>
+</header>
+
+<main class="max-w-3xl mx-auto px-4 py-6">
+
+  <!-- ===================== ログイン画面 ===================== -->
+  <section id="screen-login" class="screen">
+    <div class="bg-white rounded-2xl shadow p-6 max-w-md mx-auto">
+      <h1 class="text-xl font-bold mb-4 text-center">ログイン</h1>
+      <div id="login-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg p-2 mb-3"></div>
+      <label class="block text-sm mb-1">メールアドレス（会員メール）</label>
+      <input id="login-email" type="email" class="w-full border rounded-lg px-3 py-2 mb-1" placeholder="example@mail.com">
+      <p class="text-xs text-gray-400 mb-3">ログインにはこちらのメールアドレスをお使いください</p>
+      <label class="block text-sm mb-1">パスワード</label>
+      <div class="relative mb-1">
+        <input id="login-password" type="password" class="w-full border rounded-lg px-3 py-2 pr-10" placeholder="パスワード">
+        <button type="button" onclick="togglePasswordVisibility('login-password', this)" class="absolute right-2 top-2 text-gray-400">👁</button>
+      </div>
+      <div class="text-right mb-4">
+        <button onclick="showScreen('forgot-password')" class="text-xs text-pink-600 hover:underline">パスワードをお忘れですか？</button>
+      </div>
+      <button onclick="login()" class="w-full bg-pink-500 text-white rounded-lg py-2 font-semibold hover:bg-pink-600 flex items-center justify-center gap-2">
+        <span id="login-spinner" class="spinner hidden"></span> ログイン
+      </button>
+      <p class="text-center text-sm mt-4">アカウントをお持ちでない方は
+        <button onclick="showScreen('register')" class="text-pink-600 hover:underline">新規登録</button>
+      </p>
+    </div>
+  </section>
+
+  <!-- ===================== 新規登録画面 ===================== -->
+  <section id="screen-register" class="screen">
+    <div class="bg-white rounded-2xl shadow p-6 max-w-md mx-auto">
+      <h1 class="text-xl font-bold mb-4 text-center">新規会員登録</h1>
+      <div id="register-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg p-2 mb-3"></div>
+      <div id="register-success" class="hidden text-sm text-green-700 bg-green-50 rounded-lg p-2 mb-3"></div>
+
+      <label class="block text-sm mb-1">メールアドレス（会員メール）<span class="text-red-500">*</span></label>
+      <input id="register-email" type="email" class="w-full border rounded-lg px-3 py-2 mb-1" placeholder="example@mail.com">
+      <p class="text-xs text-gray-400 mb-3">ログインに使用します。会員番号は登録後に発行されます</p>
+
+      <label class="block text-sm mb-1">ニックネーム<span class="text-red-500">*</span></label>
+      <input id="register-nickname" type="text" class="w-full border rounded-lg px-3 py-2 mb-3" placeholder="他の会員に表示される名前">
+
+      <label class="block text-sm mb-1">連絡用SNS（任意）</label>
+      <input id="register-sns" type="text" class="w-full border rounded-lg px-3 py-2 mb-3" placeholder="X / LINE / Instagram のURL">
+
+      <div class="border rounded-lg p-3 mb-3 h-40 overflow-y-auto text-xs bg-gray-50 leading-relaxed" id="terms-box">
+        <p class="font-bold mb-2">◻️免責事項および注意事項◻️</p>
+        <p class="mb-2">本サービス（以下「当サービス」といいます）は、有志のボランティアにより運営され、会員の皆様に無料で提供されているものです。ご利用いただくにあたり、会員の皆様に安心・安全にご利用いただくための注意事項および免責事項を定めています。会員登録を完了された時点で、本内容に同意したものとみなされます。</p>
+        <p class="font-semibold mt-2">1. 無料提供およびボランティア運営に伴う原則</p>
+        <p class="mb-2">当サービスはボランティアによる善意で運営されており、会員に対して何らの対価を求めるものではありません。運営側は、当サービスの永続的な提供、運営サポート、システムの完全性（エラーやバグの不発生）、および特定の目的への適合性について、いかなる保証も行いません。</p>
+        <p class="font-semibold mt-2">2. 自己責任の原則</p>
+        <p class="mb-2">会員は、当サービスが無料のボランティア運営であることを十分理解した上で、自己の責任において当サービスを利用するものとします。当サービスを通じて提供される情報、他の会員とのやり取り、およびそれに付随する一切の行為については、会員ご自身でその正確性や安全性を判断してください。</p>
+        <p class="font-semibold mt-2">3. 当事者間での問題解決</p>
+        <p class="mb-2">当サービスをきっかけとして生じた会員間、または会員と第三者との間のトラブル、紛争、損害（金銭的トラブル、誹謗中傷、出会いに関するトラブル等を含みますがこれらに限りません）については、すべて当事者間で解決するものとします。</p>
+        <p class="font-semibold mt-2">4. 運営側の不関与（免責事項）</p>
+        <p class="mb-2">運営側は、会員間のトラブルおよび会員が被った損害について、理由の如何を問わず一切の責任を負いません。また、トラブルに対する仲裁、調停、相談対応、交渉等を行う義務も負わないものとします。ボランティア運営の特性上、事前の予告なくサービスの変更、一時停止、または終了することがあります。これによって生じた損害についても、運営側は一切の責任を負いません。</p>
+        <p class="font-semibold mt-2">5. 禁止事項（公序良俗の遵守）</p>
+        <p class="mb-2">会員は、当サービスの利用にあたり、以下の行為を行ってはならないものとします。</p>
+        <ul class="list-disc list-inside mb-2">
+          <li>公序良俗に反する行為、またはその恐れのある行為</li>
+          <li>法令、条例、または本規約に違反する行為</li>
+          <li>他の会員、運営側、または第三者の財産、プライバシー、名誉、信用を侵害する行為（誹謗中傷や迷惑行為など）</li>
+          <li>営利目的、商業目的の宣伝、強引な勧誘、または宗教・政治活動への過度な勧誘行為</li>
+          <li>運営側のボランティア活動を妨害する行為、または運営側に不当な負担をかける行為</li>
+        </ul>
+        <p class="font-semibold mt-2">6. 利用制限および登録抹消</p>
+        <p>会員が上記の禁止事項に違反した場合、または公序良俗に反する行為を行ったと推測されると運営側が判断した場合、運営側は事前の通知なしに、該当する投稿の削除、サービスの利用停止、または会員登録の抹消（強制退会）を行うことができるものとします。</p>
+      </div>
+
+      <label class="flex items-start gap-2 mb-4 text-sm">
+        <input id="register-agree" type="checkbox" class="mt-1" onchange="toggleRegisterButton()">
+        <span>上記の免責事項および注意事項を確認し、同意します。</span>
+      </label>
+
+      <button id="register-submit" onclick="register()" disabled class="w-full bg-gray-300 text-white rounded-lg py-2 font-semibold cursor-not-allowed flex items-center justify-center gap-2">
+        <span id="register-spinner" class="spinner hidden"></span> 登録する
+      </button>
+      <p class="text-center text-sm mt-4">既にアカウントをお持ちの方は
+        <button onclick="showScreen('login')" class="text-pink-600 hover:underline">ログイン</button>
+      </p>
+    </div>
+  </section>
+
+  <!-- ===================== パスワード再発行画面 ===================== -->
+  <section id="screen-forgot-password" class="screen">
+    <div class="bg-white rounded-2xl shadow p-6 max-w-md mx-auto">
+      <h1 class="text-xl font-bold mb-4 text-center">パスワード再発行</h1>
+      <div id="forgot-message" class="hidden text-sm bg-blue-50 text-blue-700 rounded-lg p-2 mb-3"></div>
+      <label class="block text-sm mb-1">登録済みメールアドレス（会員メール）</label>
+      <input id="forgot-email" type="email" class="w-full border rounded-lg px-3 py-2 mb-1" placeholder="example@mail.com">
+      <p class="text-xs text-gray-400 mb-4">ログインに使用しているメールアドレスを入力してください</p>
+      <button onclick="requestPasswordReset()" class="w-full bg-pink-500 text-white rounded-lg py-2 font-semibold hover:bg-pink-600 flex items-center justify-center gap-2">
+        <span id="forgot-spinner" class="spinner hidden"></span> 仮パスワードを送信
+      </button>
+      <p class="text-center text-sm mt-4">
+        <button onclick="showScreen('login')" class="text-pink-600 hover:underline">ログイン画面に戻る</button>
+      </p>
+    </div>
+  </section>
+
+  <!-- ===================== パスワード変更画面 ===================== -->
+  <section id="screen-change-password" class="screen">
+    <div class="bg-white rounded-2xl shadow p-6 max-w-md mx-auto">
+      <h1 class="text-xl font-bold mb-2 text-center">パスワード変更</h1>
+      <p id="change-password-notice" class="hidden text-xs text-amber-700 bg-amber-50 rounded-lg p-2 mb-3">仮パスワードでログインしました。新しいパスワードを設定してください。</p>
+      <div id="change-password-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg p-2 mb-3"></div>
+      <label class="block text-sm mb-1">新しいパスワード（6文字以上）</label>
+      <div class="relative mb-4">
+        <input id="new-password" type="password" class="w-full border rounded-lg px-3 py-2 pr-10" placeholder="新しいパスワード">
+        <button type="button" onclick="togglePasswordVisibility('new-password', this)" class="absolute right-2 top-2 text-gray-400">👁</button>
+      </div>
+      <button onclick="changePassword()" class="w-full bg-pink-500 text-white rounded-lg py-2 font-semibold hover:bg-pink-600">変更する</button>
+    </div>
+  </section>
+
+  <!-- ===================== イベント一覧画面 ===================== -->
+  <section id="screen-events" class="screen">
+    <div class="flex items-center justify-between mb-4">
+      <h1 class="text-xl font-bold">イベント一覧</h1>
+      <button onclick="openEventForm()" class="bg-pink-500 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-pink-600">+ イベント企画</button>
+    </div>
+    <div id="events-list" class="space-y-3"></div>
+  </section>
+
+  <!-- イベント詳細・参加者一覧 -->
+  <section id="screen-event-detail" class="screen">
+    <button onclick="showScreen('events')" class="text-sm text-pink-600 mb-3">← イベント一覧に戻る</button>
+    <div id="event-detail-content" class="bg-white rounded-2xl shadow p-5"></div>
+    <div class="bg-white rounded-2xl shadow p-5 mt-4">
+      <h2 class="font-bold mb-3">参加者一覧</h2>
+      <div id="event-participants-list" class="space-y-2 text-sm"></div>
+    </div>
+  </section>
+
+  <!-- ===================== イベントマッチ画面 ===================== -->
+  <section id="screen-matching" class="screen">
+    <h1 class="text-xl font-bold mb-4">週末・休日遊びプラン マッチ</h1>
+
+    <div class="bg-white rounded-2xl shadow p-5 mb-6">
+      <h2 class="font-bold mb-3">希望条件を入力してプラン生成</h2>
+      <label class="block text-sm mb-1">相手の会員番号（複数人はカンマ区切り）</label>
+      <div class="flex gap-2 mb-1">
+        <input id="match-partner-membernumber" type="text" class="flex-1 border rounded-lg px-3 py-2" placeholder="例：MM-000001, MM-000003" oninput="resetPartnerLookup()">
+        <button type="button" onclick="lookupPartner()" class="bg-gray-100 text-gray-700 rounded-lg px-3 text-sm font-semibold hover:bg-gray-200 flex items-center gap-1">
+          <span id="lookup-spinner" class="spinner hidden" style="width:14px;height:14px;"></span> 確認
+        </button>
+      </div>
+      <div id="partner-lookup-result" class="text-xs mb-3"></div>
+
+      <label class="block text-sm mb-1">遊びのジャンル</label>
+      <input id="match-genre" type="text" class="w-full border rounded-lg px-3 py-2 mb-3" placeholder="例：カフェ巡り、自然散策">
+
+      <label class="block text-sm mb-1">予算</label>
+      <input id="match-budget" type="text" class="w-full border rounded-lg px-3 py-2 mb-3" placeholder="例：一人5000円程度">
+
+      <label class="block text-sm mb-1">エリア</label>
+      <input id="match-area" type="text" class="w-full border rounded-lg px-3 py-2 mb-3" placeholder="例：渋谷・代官山周辺">
+
+      <label class="block text-sm mb-1">希望日時</label>
+      <input id="match-datetime" type="text" class="w-full border rounded-lg px-3 py-2 mb-4" placeholder="例：今週土曜の午後">
+
+      <button id="generate-plan-btn" onclick="generateDatePlan()" disabled class="w-full bg-gray-300 text-white rounded-lg py-2 font-semibold cursor-not-allowed flex items-center justify-center gap-2">
+        <span id="generate-spinner" class="spinner hidden"></span> AIにプランを提案してもらう
+      </button>
+      <div id="generate-plan-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg p-2 mt-3"></div>
+    </div>
+
+    <h2 class="font-bold mb-3">提案済みプラン一覧</h2>
+    <div id="matches-list" class="space-y-3"></div>
+  </section>
+
+  <!-- ===================== マイページ ===================== -->
+  <section id="screen-mypage" class="screen">
+    <h1 class="text-xl font-bold mb-4">マイページ</h1>
+    <div class="bg-white rounded-2xl shadow p-5 mb-4">
+      <p class="text-sm text-gray-500">ニックネーム</p>
+      <div id="mypage-nickname-view" class="flex items-center justify-between mb-3">
+        <p id="mypage-nickname" class="font-semibold"></p>
+        <button onclick="openNicknameEdit()" class="text-xs text-pink-600 hover:underline">編集</button>
+      </div>
+      <div id="mypage-nickname-edit" class="hidden mb-3">
+        <input id="mypage-nickname-input" type="text" maxlength="30" class="w-full border rounded-lg px-3 py-2 mb-1">
+        <div id="mypage-nickname-error" class="hidden text-xs text-red-600 mb-2"></div>
+        <div class="flex gap-2">
+          <button onclick="cancelNicknameEdit()" class="flex-1 border rounded-lg py-1.5 text-sm">キャンセル</button>
+          <button onclick="saveNickname()" class="flex-1 bg-pink-500 text-white rounded-lg py-1.5 text-sm font-semibold hover:bg-pink-600 flex items-center justify-center gap-2">
+            <span id="nickname-save-spinner" class="spinner hidden" style="width:14px;height:14px;"></span> 保存
+          </button>
+        </div>
+      </div>
+      <p class="text-sm text-gray-500">連絡用SNS（任意）</p>
+      <div id="mypage-sns-view" class="flex items-center justify-between mb-3 gap-2">
+        <p id="mypage-sns" class="font-semibold break-all"></p>
+        <button onclick="openSnsEdit()" class="text-xs text-pink-600 hover:underline whitespace-nowrap">編集</button>
+      </div>
+      <div id="mypage-sns-edit" class="hidden mb-3">
+        <input id="mypage-sns-input" type="text" maxlength="300" class="w-full border rounded-lg px-3 py-2 mb-1" placeholder="X / LINE / Instagram のURL">
+        <div id="mypage-sns-error" class="hidden text-xs text-red-600 mb-2"></div>
+        <div class="flex gap-2 mb-2">
+          <button onclick="cancelSnsEdit()" class="flex-1 border rounded-lg py-1.5 text-sm">キャンセル</button>
+          <button onclick="saveSnsLink()" class="flex-1 bg-pink-500 text-white rounded-lg py-1.5 text-sm font-semibold hover:bg-pink-600 flex items-center justify-center gap-2">
+            <span id="sns-save-spinner" class="spinner hidden" style="width:14px;height:14px;"></span> 保存
+          </button>
+        </div>
+        <button onclick="deleteSnsLink()" class="w-full text-xs text-red-500 hover:underline">SNSの登録を削除する</button>
+      </div>
+      <p class="text-sm text-gray-500">会員番号</p>
+      <p id="mypage-membernumber" class="font-semibold mb-1"></p>
+      <p class="text-xs text-gray-400 mb-3">イベントマッチでお相手に伝える際はこの番号をお使いください</p>
+      <p class="text-sm text-gray-500">ログイン用メールアドレス</p>
+      <p id="mypage-email" class="font-semibold mb-1"></p>
+      <p class="text-xs text-gray-400 mb-3">他の会員には公開されません</p>
+      <button onclick="showScreen('change-password')" class="text-sm text-pink-600 hover:underline">パスワードを変更する</button>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===================== イベント作成・編集モーダル ===================== -->
+<div id="event-form-modal" class="hidden fixed inset-0 z-50 modal-overlay flex items-center justify-center px-4">
+  <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+    <h2 id="event-form-title" class="text-lg font-bold mb-4">イベント企画</h2>
+    <input type="hidden" id="event-form-id">
+    <label class="block text-sm mb-1">タイトル</label>
+    <input id="event-form-title-input" class="w-full border rounded-lg px-3 py-2 mb-3" placeholder="例：朝活サイクリング会">
+    <label class="block text-sm mb-1">詳細</label>
+    <textarea id="event-form-description" class="w-full border rounded-lg px-3 py-2 mb-3" rows="3" placeholder="イベントの内容を入力"></textarea>
+    <label class="block text-sm mb-1">開催日</label>
+    <input id="event-form-date" type="date" class="w-full border rounded-lg px-3 py-2 mb-3">
+    <label class="block text-sm mb-1">エリア</label>
+    <input id="event-form-location" class="w-full border rounded-lg px-3 py-2 mb-3" placeholder="例：世田谷区周辺">
+    <label class="block text-sm mb-1">予算</label>
+    <input id="event-form-budget" class="w-full border rounded-lg px-3 py-2 mb-3" placeholder="例：無料、〜3000円など">
+    <label class="block text-sm mb-1">募集人数（任意・空欄で無制限）</label>
+    <input id="event-form-capacity" type="number" min="1" class="w-full border rounded-lg px-3 py-2 mb-3" placeholder="例：10">
+    <label class="block text-sm mb-1">募集期限（任意・空欄で無期限）</label>
+    <input id="event-form-deadline" type="datetime-local" class="w-full border rounded-lg px-3 py-2 mb-4">
+    <div class="flex gap-2">
+      <button onclick="closeEventForm()" class="flex-1 border rounded-lg py-2">キャンセル</button>
+      <button onclick="submitEventForm()" class="flex-1 bg-pink-500 text-white rounded-lg py-2 font-semibold hover:bg-pink-600">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 参加登録モーダル ===================== -->
+<div id="join-event-modal" class="hidden fixed inset-0 z-50 modal-overlay flex items-center justify-center px-4">
+  <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+    <h2 class="text-lg font-bold mb-4">参加登録</h2>
+    <input type="hidden" id="join-event-id">
+    <label class="block text-sm mb-1">参加人数（ご本人＋同伴者を含む人数）</label>
+    <input id="join-party-size" type="number" min="1" value="1" class="w-full border rounded-lg px-3 py-2 mb-4">
+    <div id="join-event-capacity-note" class="text-xs text-gray-500 mb-4"></div>
+    <div class="flex gap-2">
+      <button onclick="closeJoinEventModal()" class="flex-1 border rounded-lg py-2">キャンセル</button>
+      <button onclick="confirmJoinEvent()" class="flex-1 bg-pink-500 text-white rounded-lg py-2 font-semibold hover:bg-pink-600">参加する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== マッチ成立モーダル ===================== -->
+<div id="match-success-modal" class="hidden fixed inset-0 z-50 modal-overlay flex items-center justify-center px-4">
+  <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-center">
+    <p class="text-3xl mb-2">🎉</p>
+    <h2 class="text-lg font-bold mb-2">マッチが成立しました！</h2>
+    <p class="text-sm text-gray-600 mb-4">参加者全員の「行きたい」が揃いました。連絡用SNSで直接やりとりを始めましょう。</p>
+    <div id="match-success-sns" class="mb-4"></div>
+    <button onclick="closeMatchSuccessModal()" class="w-full bg-pink-500 text-white rounded-lg py-2 font-semibold hover:bg-pink-600">閉じる</button>
+  </div>
+</div>
+
+<!-- ===================== 操作説明モーダル ===================== -->
+<div id="help-modal" class="hidden fixed inset-0 z-50 modal-overlay flex items-center justify-center px-4">
+  <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[85vh] overflow-y-auto">
+    <h2 class="text-lg font-bold mb-3">machi-machiの使い方</h2>
+    <ol class="list-decimal list-inside text-sm space-y-2 text-gray-700">
+      <li>メールアドレスとニックネームで会員登録すると、仮パスワードがメールで届きます。</li>
+      <li>仮パスワードでログイン後、マイページから新しいパスワードに変更してください。</li>
+      <li>「イベント」から自由に週末の集まりを企画したり、気になるイベントに参加表明できます。</li>
+      <li>「イベントマッチ」では、お相手の会員番号（複数人はカンマ区切り）と希望条件を入力するとAIが週末・休日の遊びプランを提案します。</li>
+      <li>提案されたプランに参加者全員が「行きたい」を押すとマッチが成立し、連絡用SNSが交換できます。</li>
+    </ol>
+    <button onclick="closeHelpModal()" class="w-full bg-pink-500 text-white rounded-lg py-2 font-semibold hover:bg-pink-600 mt-5">閉じる</button>
+  </div>
+</div>
+
+<!-- ===================== トースト通知 ===================== -->
+<div id="toast" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50"></div>
+
+<script>
+// ===================== 状態管理 =====================
+let currentUser = null; // { userId, email, nickname, snsLink, isAdmin, mustChangePassword }
+let sessionToken = null;
+
+function loadSession() {
+  const saved = localStorage.getItem('machimachi_session');
+  if (saved) {
+    try {
+      const obj = JSON.parse(saved);
+      currentUser = obj.user;
+      sessionToken = obj.sessionToken;
+    } catch (e) {}
+  }
+}
+
+function saveSession() {
+  localStorage.setItem('machimachi_session', JSON.stringify({ user: currentUser, sessionToken: sessionToken }));
+}
+
+function clearSession() {
+  localStorage.removeItem('machimachi_session');
+  currentUser = null;
+  sessionToken = null;
+}
+
+// ===================== API通信 =====================
+async function callApi(action, payload) {
+  const fullPayload = Object.assign({}, payload || {});
+  if (currentUser) {
+    fullPayload.userId = fullPayload.userId || currentUser.userId;
+  }
+  if (sessionToken) {
+    fullPayload.sessionToken = fullPayload.sessionToken || sessionToken;
+  }
+
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    redirect: 'follow',
+    body: JSON.stringify({ action: action, payload: fullPayload })
+  });
+  return await res.json();
+}
+
+// ===================== 画面切り替え =====================
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(function (el) { el.classList.remove('active'); });
+  const target = document.getElementById('screen-' + name);
+  if (target) target.classList.add('active');
+
+  if (name === 'events') loadEvents();
+  if (name === 'matching') loadMyMatches();
+  if (name === 'mypage') loadMypage();
+
+  updateAuthUI();
+  window.scrollTo(0, 0);
+}
+
+function updateAuthUI() {
+  const loggedIn = !!currentUser;
+  document.querySelectorAll('[data-auth="true"]').forEach(function (el) {
+    el.style.display = loggedIn ? '' : 'none';
+  });
+}
+
+function toggleMobileMenu() {
+  document.getElementById('mobileMenu').classList.toggle('hidden');
+}
+
+function togglePasswordVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    input.type = 'password';
+    btn.textContent = '👁';
+  }
+}
+
+function toggleRegisterButton() {
+  const checked = document.getElementById('register-agree').checked;
+  const btn = document.getElementById('register-submit');
+  btn.disabled = !checked;
+  btn.className = checked
+    ? 'w-full bg-pink-500 text-white rounded-lg py-2 font-semibold hover:bg-pink-600 flex items-center justify-center gap-2'
+    : 'w-full bg-gray-300 text-white rounded-lg py-2 font-semibold cursor-not-allowed flex items-center justify-center gap-2';
+}
+
+function showToast(message) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.classList.remove('hidden');
+  setTimeout(function () { toast.classList.add('hidden'); }, 3000);
+}
+
+function setLoading(spinnerId, isLoading) {
+  const el = document.getElementById(spinnerId);
+  if (!el) return;
+  el.classList.toggle('hidden', !isLoading);
+}
+
+// ===================== 認証 =====================
+async function register() {
+  const email = document.getElementById('register-email').value.trim();
+  const nickname = document.getElementById('register-nickname').value.trim();
+  const snsLink = document.getElementById('register-sns').value.trim();
+  const agreedToTerms = document.getElementById('register-agree').checked;
+  const errorBox = document.getElementById('register-error');
+  const successBox = document.getElementById('register-success');
+  errorBox.classList.add('hidden');
+  successBox.classList.add('hidden');
+
+  if (!email || !nickname) {
+    errorBox.textContent = 'メールアドレスとニックネームを入力してください。';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  setLoading('register-spinner', true);
+  try {
+    const result = await callApi('register', { email, nickname, snsLink, agreedToTerms });
+    if (result.success) {
+      successBox.textContent = result.message;
+      successBox.classList.remove('hidden');
+      setTimeout(function () { showScreen('login'); }, 2000);
+    } else {
+      errorBox.textContent = result.error;
+      errorBox.classList.remove('hidden');
+    }
+  } catch (e) {
+    errorBox.textContent = '通信エラーが発生しました。';
+    errorBox.classList.remove('hidden');
+  } finally {
+    setLoading('register-spinner', false);
+  }
+}
+
+async function login() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorBox = document.getElementById('login-error');
+  errorBox.classList.add('hidden');
+
+  setLoading('login-spinner', true);
+  try {
+    const result = await callApi('login', { email, password });
+    if (result.success) {
+      currentUser = result.user;
+      sessionToken = result.sessionToken;
+      saveSession();
+      if (currentUser.mustChangePassword) {
+        document.getElementById('change-password-notice').classList.remove('hidden');
+        showScreen('change-password');
+      } else {
+        showScreen('events');
+      }
+    } else {
+      errorBox.textContent = result.error;
+      errorBox.classList.remove('hidden');
+    }
+  } catch (e) {
+    errorBox.textContent = '通信エラーが発生しました。';
+    errorBox.classList.remove('hidden');
+  } finally {
+    setLoading('login-spinner', false);
+  }
+}
+
+async function logout() {
+  try { await callApi('logout', {}); } catch (e) {}
+  clearSession();
+  showScreen('login');
+}
+
+async function requestPasswordReset() {
+  const email = document.getElementById('forgot-email').value.trim();
+  const msgBox = document.getElementById('forgot-message');
+  setLoading('forgot-spinner', true);
+  try {
+    const result = await callApi('requestPasswordReset', { email });
+    msgBox.textContent = result.message || result.error;
+    msgBox.classList.remove('hidden');
+  } catch (e) {
+    msgBox.textContent = '通信エラーが発生しました。';
+    msgBox.classList.remove('hidden');
+  } finally {
+    setLoading('forgot-spinner', false);
+  }
+}
+
+async function changePassword() {
+  const newPassword = document.getElementById('new-password').value;
+  const errorBox = document.getElementById('change-password-error');
+  errorBox.classList.add('hidden');
+
+  try {
+    const result = await callApi('changePassword', { newPassword });
+    if (result.success) {
+      currentUser.mustChangePassword = false;
+      saveSession();
+      showToast('パスワードを変更しました。');
+      showScreen('events');
+    } else {
+      errorBox.textContent = result.error;
+      errorBox.classList.remove('hidden');
+    }
+  } catch (e) {
+    errorBox.textContent = '通信エラーが発生しました。';
+    errorBox.classList.remove('hidden');
+  }
+}
+
+// ===================== イベント機能 =====================
+let allEvents = [];
+
+async function loadEvents() {
+  const list = document.getElementById('events-list');
+  list.innerHTML = '<p class="text-sm text-gray-400">読み込み中...</p>';
+  try {
+    const result = await callApi('listEvents', {});
+    if (!result.success) { list.innerHTML = '<p class="text-sm text-red-500">' + result.error + '</p>'; return; }
+    allEvents = result.events;
+    if (allEvents.length === 0) {
+      list.innerHTML = '<p class="text-sm text-gray-400">まだイベントがありません。最初の企画者になりましょう！</p>';
+      return;
+    }
+    list.innerHTML = allEvents.map(renderEventCard).join('');
+  } catch (e) {
+    list.innerHTML = '<p class="text-sm text-red-500">通信エラーが発生しました。</p>';
+  }
+}
+
+function renderEventCard(ev) {
+  const dateStr = ev.eventDate ? new Date(ev.eventDate).toLocaleDateString('ja-JP') : '日程未定';
+  const statusBadge = ev.isFull
+    ? '<span class="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full font-semibold">募集終了</span>'
+    : '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-semibold">募集中</span>';
+  const capacityText = ev.capacity
+    ? '定員 ' + ev.joinedCount + ' / ' + ev.capacity + '名'
+    : '参加 ' + ev.joinedCount + '名';
+
+  return '' +
+    '<div class="bg-white rounded-2xl shadow p-4 cursor-pointer hover:shadow-md transition" onclick="openEventDetail(\'' + ev.eventId + '\')">' +
+      '<div class="flex justify-between items-start gap-2">' +
+        '<h3 class="font-bold">' + escHtml(ev.title) + '</h3>' +
+        statusBadge +
+      '</div>' +
+      '<p class="text-sm text-gray-600 mt-1 line-clamp-2">' + escHtml(ev.description || '') + '</p>' +
+      '<div class="flex flex-wrap gap-3 mt-2 text-xs text-gray-500">' +
+        '<span>📅 ' + dateStr + '</span>' +
+        '<span>📍 ' + escHtml(ev.location || '未定') + '</span>' +
+        '<span>💰 ' + escHtml(ev.budget || '未定') + '</span>' +
+        '<span>👥 ' + capacityText + '</span>' +
+      '</div>' +
+      '<p class="text-xs text-gray-400 mt-2">企画者: ' + escHtml(ev.organizerNickname) + '</p>' +
+    '</div>';
+}
+
+function escHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+function formatDeadline(deadline) {
+  if (!deadline) return '';
+  const d = new Date(deadline);
+  if (isNaN(d.getTime())) return '';
+  return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
+    ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+}
+
+let currentEventId = null;
+
+async function openEventDetail(eventId) {
+  currentEventId = eventId;
+  const ev = allEvents.find(function (e) { return e.eventId === eventId; });
+  if (!ev) return;
+
+  const isOwnerOrAdmin = currentUser && (currentUser.userId === ev.organizerId || currentUser.isAdmin);
+  const dateStr = ev.eventDate ? new Date(ev.eventDate).toLocaleDateString('ja-JP') : '日程未定';
+  const capacityText = ev.capacity ? ('定員 ' + ev.joinedCount + ' / ' + ev.capacity + '名') : ('参加 ' + ev.joinedCount + '名（定員なし）');
+  const deadlineText = ev.deadline ? formatDeadline(ev.deadline) + ' まで' : 'なし';
+  const statusBadge = ev.isFull
+    ? '<span class="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full font-semibold">募集終了</span>'
+    : '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-semibold">募集中</span>';
+
+  const joinButton = ev.isFull
+    ? '<button disabled class="w-full bg-gray-300 text-white rounded-lg py-2 font-semibold cursor-not-allowed">募集を終了しました</button>'
+    : '<button onclick="openJoinEventModal(\'' + ev.eventId + '\')" class="w-full bg-pink-500 text-white rounded-lg py-2 font-semibold hover:bg-pink-600">参加する</button>';
+
+  document.getElementById('event-detail-content').innerHTML = '' +
+    '<div class="flex justify-between items-start mb-2 gap-2">' +
+      '<h2 class="text-lg font-bold">' + escHtml(ev.title) + '</h2>' +
+      statusBadge +
+    '</div>' +
+    (isOwnerOrAdmin ? '<div class="flex gap-3 text-xs mb-3">' +
+      '<button onclick="openEventForm(\'' + ev.eventId + '\')" class="text-pink-600">編集</button>' +
+      '<button onclick="deleteEvent(\'' + ev.eventId + '\')" class="text-red-500">削除</button>' +
+    '</div>' : '') +
+    '<p class="text-sm text-gray-600 mb-3">' + escHtml(ev.description || '') + '</p>' +
+    '<div class="text-sm text-gray-600 space-y-1 mb-4">' +
+      '<p>📅 ' + dateStr + '</p>' +
+      '<p>📍 ' + escHtml(ev.location || '未定') + '</p>' +
+      '<p>💰 ' + escHtml(ev.budget || '未定') + '</p>' +
+      '<p>👥 ' + capacityText + '</p>' +
+      '<p>⏰ 募集期限: ' + escHtml(deadlineText) + '</p>' +
+      '<p>企画者: ' + escHtml(ev.organizerNickname) + '</p>' +
+    '</div>' +
+    joinButton +
+    '<button id="leave-event-btn" onclick="leaveEvent(\'' + ev.eventId + '\')" class="hidden w-full border border-pink-300 text-pink-600 rounded-lg py-2 font-semibold mt-2">参加を取り消す</button>';
+
+  showScreen('event-detail');
+  loadEventParticipants(eventId);
+}
+
+async function loadEventParticipants(eventId) {
+  const list = document.getElementById('event-participants-list');
+  list.innerHTML = '<p class="text-gray-400">読み込み中...</p>';
+  try {
+    const result = await callApi('getEventParticipants', { eventId });
+    if (!result.success) { list.innerHTML = '<p class="text-red-500">' + result.error + '</p>'; return; }
+
+    const leaveBtn = document.getElementById('leave-event-btn');
+    const isJoined = currentUser && result.participants.some(function (p) { return p.userId === currentUser.userId; });
+    if (leaveBtn) leaveBtn.classList.toggle('hidden', !isJoined);
+
+    if (result.participants.length === 0) {
+      list.innerHTML = '<p class="text-gray-400">まだ参加者がいません。</p>';
+      return;
+    }
+    list.innerHTML = result.participants.map(function (p) {
+      const sizeText = p.partySize > 1 ? '（' + p.partySize + '名）' : '';
+      return '' +
+        '<details class="border-b pb-2 group">' +
+          '<summary class="flex justify-between items-center cursor-pointer list-none">' +
+            '<span>' + escHtml(p.nickname) + sizeText + '</span>' +
+            '<span class="text-gray-400 text-xs transition-transform group-open:rotate-180">▼</span>' +
+          '</summary>' +
+          '<div class="mt-2 pl-1 text-xs text-gray-500 space-y-1">' +
+            '<p>会員番号: ' + escHtml(p.memberNumber) + '</p>' +
+            (p.snsLink
+              ? '<p>SNS: <a href="' + escHtml(p.snsLink) + '" target="_blank" class="text-pink-600">' + escHtml(p.snsLink) + '</a></p>'
+              : '<p>SNS: 未登録</p>') +
+          '</div>' +
+        '</details>';
+    }).join('') +
+    '<p class="text-xs text-gray-400 pt-2">合計参加人数: ' + result.totalJoined + '名</p>';
+  } catch (e) {
+    list.innerHTML = '<p class="text-red-500">通信エラーが発生しました。</p>';
+  }
+}
+
+function openJoinEventModal(eventId) {
+  document.getElementById('join-event-id').value = eventId;
+  document.getElementById('join-party-size').value = 1;
+
+  const ev = allEvents.find(function (e) { return e.eventId === eventId; });
+  const note = document.getElementById('join-event-capacity-note');
+  if (ev && ev.capacity) {
+    const remaining = Math.max(0, ev.capacity - ev.joinedCount);
+    note.textContent = '残り受付可能人数: ' + remaining + '名';
+    document.getElementById('join-party-size').max = remaining;
+  } else {
+    note.textContent = '定員の設定はありません。';
+    document.getElementById('join-party-size').removeAttribute('max');
+  }
+
+  document.getElementById('join-event-modal').classList.remove('hidden');
+}
+
+function closeJoinEventModal() {
+  document.getElementById('join-event-modal').classList.add('hidden');
+}
+
+async function confirmJoinEvent() {
+  const eventId = document.getElementById('join-event-id').value;
+  const partySize = parseInt(document.getElementById('join-party-size').value, 10) || 1;
+
+  try {
+    const result = await callApi('joinEvent', { eventId, partySize });
+    if (result.success) {
+      showToast('参加登録しました！');
+      closeJoinEventModal();
+      await loadEvents();
+      openEventDetail(eventId);
+    } else {
+      showToast(result.error);
+    }
+  } catch (e) {
+    showToast('通信エラーが発生しました。');
+  }
+}
+
+async function leaveEvent(eventId) {
+  if (!confirm('参加を取り消しますか？')) return;
+  try {
+    const result = await callApi('leaveEvent', { eventId });
+    if (result.success) {
+      showToast('参加を取り消しました。');
+      await loadEvents();
+      openEventDetail(eventId);
+    } else {
+      showToast(result.error);
+    }
+  } catch (e) {
+    showToast('通信エラーが発生しました。');
+  }
+}
+
+async function deleteEvent(eventId) {
+  if (!confirm('このイベントを削除しますか？')) return;
+  try {
+    const result = await callApi('deleteEvent', { eventId });
+    if (result.success) {
+      showToast('削除しました。');
+      showScreen('events');
+    } else {
+      showToast(result.error);
+    }
+  } catch (e) {
+    showToast('通信エラーが発生しました。');
+  }
+}
+
+function toLocalDatetimeInputValue_(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return '';
+  const pad = function (n) { return ('0' + n).slice(-2); };
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+function openEventForm(eventId) {
+  document.getElementById('event-form-id').value = eventId || '';
+  if (eventId) {
+    const ev = allEvents.find(function (e) { return e.eventId === eventId; });
+    document.getElementById('event-form-title').textContent = 'イベント編集';
+    document.getElementById('event-form-title-input').value = ev.title || '';
+    document.getElementById('event-form-description').value = ev.description || '';
+    document.getElementById('event-form-date').value = ev.eventDate ? ev.eventDate.substring(0, 10) : '';
+    document.getElementById('event-form-location').value = ev.location || '';
+    document.getElementById('event-form-budget').value = ev.budget || '';
+    document.getElementById('event-form-capacity').value = ev.capacity || '';
+    document.getElementById('event-form-deadline').value = toLocalDatetimeInputValue_(ev.deadline);
+  } else {
+    document.getElementById('event-form-title').textContent = 'イベント企画';
+    ['event-form-title-input', 'event-form-description', 'event-form-date', 'event-form-location', 'event-form-budget', 'event-form-capacity', 'event-form-deadline'].forEach(function (id) {
+      document.getElementById(id).value = '';
+    });
+  }
+  document.getElementById('event-form-modal').classList.remove('hidden');
+}
+
+function closeEventForm() {
+  document.getElementById('event-form-modal').classList.add('hidden');
+}
+
+async function submitEventForm() {
+  const eventId = document.getElementById('event-form-id').value;
+  const capacityRaw = document.getElementById('event-form-capacity').value.trim();
+  const deadlineRaw = document.getElementById('event-form-deadline').value;
+
+  const payload = {
+    title: document.getElementById('event-form-title-input').value.trim(),
+    description: document.getElementById('event-form-description').value.trim(),
+    eventDate: document.getElementById('event-form-date').value,
+    location: document.getElementById('event-form-location').value.trim(),
+    budget: document.getElementById('event-form-budget').value.trim(),
+    capacity: capacityRaw ? parseInt(capacityRaw, 10) : '',
+    deadline: deadlineRaw ? new Date(deadlineRaw).toISOString() : ''
+  };
+  if (!payload.title) { showToast('タイトルを入力してください。'); return; }
+
+  try {
+    const result = eventId
+      ? await callApi('updateEvent', Object.assign({ eventId: eventId }, payload))
+      : await callApi('createEvent', payload);
+    if (result.success) {
+      showToast('保存しました。');
+      closeEventForm();
+      loadEvents();
+    } else {
+      showToast(result.error);
+    }
+  } catch (e) {
+    showToast('通信エラーが発生しました。');
+  }
+}
+
+// ===================== イベントマッチ機能 =====================
+let resolvedPartners = []; // [{ userId, memberNumber, nickname }, ...]
+
+function resetPartnerLookup() {
+  resolvedPartners = [];
+  document.getElementById('partner-lookup-result').innerHTML = '';
+  setGenerateButtonEnabled(false);
+}
+
+function setGenerateButtonEnabled(enabled) {
+  const btn = document.getElementById('generate-plan-btn');
+  btn.disabled = !enabled;
+  btn.className = enabled
+    ? 'w-full bg-pink-500 text-white rounded-lg py-2 font-semibold hover:bg-pink-600 flex items-center justify-center gap-2'
+    : 'w-full bg-gray-300 text-white rounded-lg py-2 font-semibold cursor-not-allowed flex items-center justify-center gap-2';
+}
+
+async function lookupPartner() {
+  const memberNumbers = document.getElementById('match-partner-membernumber').value.trim();
+  const resultBox = document.getElementById('partner-lookup-result');
+  resultBox.innerHTML = '';
+  if (!memberNumbers) { showToast('相手の会員番号を入力してください。'); return; }
+
+  setLoading('lookup-spinner', true);
+  try {
+    const result = await callApi('findUsersByMemberNumbers', { memberNumbers });
+    if (result.success) {
+      resolvedPartners = result.users;
+      const foundList = result.users.map(function (u) { return escHtml(u.nickname) + '（' + escHtml(u.memberNumber) + '）'; }).join('、');
+      let html = '<span class="text-green-700">✓ ' + foundList + ' さんが見つかりました</span>';
+      if (result.notFound && result.notFound.length > 0) {
+        html += '<br><span class="text-amber-600">※見つかりませんでした: ' + result.notFound.map(escHtml).join('、') + '</span>';
+      }
+      resultBox.innerHTML = html;
+      setGenerateButtonEnabled(true);
+    } else {
+      resolvedPartners = [];
+      resultBox.innerHTML = '<span class="text-red-500">' + escHtml(result.error) + '</span>';
+      setGenerateButtonEnabled(false);
+    }
+  } catch (e) {
+    resultBox.innerHTML = '<span class="text-red-500">通信エラーが発生しました。</span>';
+    setGenerateButtonEnabled(false);
+  } finally {
+    setLoading('lookup-spinner', false);
+  }
+}
+
+async function generateDatePlan() {
+  const errorBox = document.getElementById('generate-plan-error');
+  errorBox.classList.add('hidden');
+
+  if (resolvedPartners.length === 0) { showToast('先に相手の会員番号を確認してください。'); return; }
+
+  const genre = document.getElementById('match-genre').value.trim();
+  const budget = document.getElementById('match-budget').value.trim();
+  const area = document.getElementById('match-area').value.trim();
+  const datetime = document.getElementById('match-datetime').value.trim();
+
+  // 現状は提案者の希望条件を全員に共通適用（個別入力フォームは将来拡張）
+  const sharedPreferences = { genre, budget, area, datetime };
+  const preferencesByUser = {};
+  preferencesByUser[currentUser.userId] = sharedPreferences;
+  resolvedPartners.forEach(function (p) { preferencesByUser[p.userId] = sharedPreferences; });
+
+  setLoading('generate-spinner', true);
+  try {
+    const result = await callApi('generateDatePlan', {
+      partnerUserIds: resolvedPartners.map(function (p) { return p.userId; }),
+      preferencesByUser: preferencesByUser
+    });
+    if (result.success) {
+      showToast('プランを生成しました！');
+      document.getElementById('match-partner-membernumber').value = '';
+      resetPartnerLookup();
+      loadMyMatches();
+    } else {
+      errorBox.textContent = result.error;
+      errorBox.classList.remove('hidden');
+    }
+  } catch (e) {
+    errorBox.textContent = '通信エラーが発生しました。電波状況をご確認のうえ、再度お試しください。';
+    errorBox.classList.remove('hidden');
+  } finally {
+    setLoading('generate-spinner', false);
+  }
+}
+
+async function loadMyMatches() {
+  const list = document.getElementById('matches-list');
+  list.innerHTML = '<p class="text-sm text-gray-400">読み込み中...</p>';
+  try {
+    const result = await callApi('listMyMatches', {});
+    if (!result.success) { list.innerHTML = '<p class="text-sm text-red-500">' + result.error + '</p>'; return; }
+    if (result.matches.length === 0) {
+      list.innerHTML = '<p class="text-sm text-gray-400">まだ提案されたプランはありません。</p>';
+      return;
+    }
+    list.innerHTML = result.matches.map(renderMatchCard).join('');
+  } catch (e) {
+    list.innerHTML = '<p class="text-sm text-red-500">通信エラーが発生しました。</p>';
+  }
+}
+
+function renderMatchCard(m) {
+  const plan = m.plan || {};
+  const schedule = (plan.schedule || []).map(function (s) {
+    return '<li>' + escHtml(s.time) + ' - ' + escHtml(s.activity) + '</li>';
+  }).join('');
+  const highlights = (plan.highlights || []).map(function (h) {
+    return '<li>' + escHtml(h) + '</li>';
+  }).join('');
+
+  const statusBadge = m.status === 'matched'
+    ? '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">マッチ成立</span>'
+    : '<span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">回答待ち（' + m.respondedCount + '/' + m.totalCount + '）</span>';
+
+  const partnerText = m.partnerNicknames && m.partnerNicknames.length > 0
+    ? m.partnerNicknames.map(escHtml).join('、')
+    : '不明';
+
+  const snsList = m.status === 'matched'
+    ? m.members.filter(function (mem) { return !mem.isSelf && mem.snsLink; }).map(function (mem) {
+        return '<a href="' + escHtml(mem.snsLink) + '" target="_blank" class="block text-center bg-pink-500 text-white rounded-lg py-2 text-sm font-semibold mb-2">' + escHtml(mem.nickname) + 'さんに連絡する</a>';
+      }).join('')
+    : '';
+
+  const respondButton = m.status === 'matched'
+    ? (snsList || '<p class="text-xs text-gray-400 text-center">SNS未登録の参加者がいます</p>')
+    : '<button onclick="respondToPlan(\'' + m.matchId + '\', true)" class="w-full ' + (m.myWantsToGo ? 'bg-pink-100 text-pink-600' : 'bg-pink-500 text-white') + ' rounded-lg py-2 text-sm font-semibold">' + (m.myWantsToGo ? '行きたい ✓（相手の回答を待っています）' : '行きたい') + '</button>';
+
+  return '' +
+    '<div class="bg-white rounded-2xl shadow p-4">' +
+      '<div class="flex justify-between items-start mb-2">' +
+        '<h3 class="font-bold">' + escHtml(plan.title || '遊びプラン') + '</h3>' +
+        statusBadge +
+      '</div>' +
+      '<p class="text-xs text-gray-400 mb-2">お相手: ' + partnerText + '</p>' +
+      '<p class="text-sm text-gray-600 mb-2">' + escHtml(plan.summary || '') + '</p>' +
+      (schedule ? '<ul class="text-xs text-gray-600 list-disc list-inside mb-2">' + schedule + '</ul>' : '') +
+      (highlights ? '<ul class="text-xs text-pink-600 list-disc list-inside mb-2">' + highlights + '</ul>' : '') +
+      '<p class="text-xs text-gray-400 mb-3">予算目安: ' + escHtml(plan.estimatedBudget || '未定') + '</p>' +
+      respondButton +
+    '</div>';
+}
+
+async function respondToPlan(matchId, wantsToGo) {
+  try {
+    const result = await callApi('respondToPlan', { matchId, wantsToGo });
+    if (result.success) {
+      if (result.matched) {
+        openMatchSuccessModal(matchId);
+      } else {
+        showToast('回答を送信しました。全員の回答が揃うとマッチが成立します。');
+      }
+      loadMyMatches();
+    } else {
+      showToast(result.error);
+    }
+  } catch (e) {
+    showToast('通信エラーが発生しました。');
+  }
+}
+
+function openMatchSuccessModal(matchId) {
+  document.getElementById('match-success-modal').classList.remove('hidden');
+}
+function closeMatchSuccessModal() {
+  document.getElementById('match-success-modal').classList.add('hidden');
+}
+
+// ===================== マイページ =====================
+function loadMypage() {
+  if (!currentUser) return;
+  document.getElementById('mypage-nickname').textContent = currentUser.nickname;
+  document.getElementById('mypage-sns').textContent = currentUser.snsLink || '未登録';
+  document.getElementById('mypage-membernumber').textContent = currentUser.memberNumber;
+  document.getElementById('mypage-email').textContent = currentUser.email;
+  cancelNicknameEdit();
+  cancelSnsEdit();
+}
+
+function openNicknameEdit() {
+  document.getElementById('mypage-nickname-input').value = currentUser.nickname;
+  document.getElementById('mypage-nickname-error').classList.add('hidden');
+  document.getElementById('mypage-nickname-view').classList.add('hidden');
+  document.getElementById('mypage-nickname-edit').classList.remove('hidden');
+}
+
+function cancelNicknameEdit() {
+  document.getElementById('mypage-nickname-view').classList.remove('hidden');
+  document.getElementById('mypage-nickname-edit').classList.add('hidden');
+}
+
+async function saveNickname() {
+  const newNickname = document.getElementById('mypage-nickname-input').value.trim();
+  const errorBox = document.getElementById('mypage-nickname-error');
+  errorBox.classList.add('hidden');
+
+  if (!newNickname) {
+    errorBox.textContent = 'ニックネームを入力してください。';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  setLoading('nickname-save-spinner', true);
+  try {
+    const result = await callApi('changeNickname', { newNickname });
+    if (result.success) {
+      currentUser.nickname = result.nickname;
+      saveSession();
+      document.getElementById('mypage-nickname').textContent = currentUser.nickname;
+      cancelNicknameEdit();
+      showToast('ニックネームを変更しました。');
+    } else {
+      errorBox.textContent = result.error;
+      errorBox.classList.remove('hidden');
+    }
+  } catch (e) {
+    errorBox.textContent = '通信エラーが発生しました。';
+    errorBox.classList.remove('hidden');
+  } finally {
+    setLoading('nickname-save-spinner', false);
+  }
+}
+
+function openSnsEdit() {
+  document.getElementById('mypage-sns-input').value = currentUser.snsLink || '';
+  document.getElementById('mypage-sns-error').classList.add('hidden');
+  document.getElementById('mypage-sns-view').classList.add('hidden');
+  document.getElementById('mypage-sns-edit').classList.remove('hidden');
+}
+
+function cancelSnsEdit() {
+  document.getElementById('mypage-sns-view').classList.remove('hidden');
+  document.getElementById('mypage-sns-edit').classList.add('hidden');
+}
+
+async function applySnsLinkChange_(newSnsLink) {
+  const errorBox = document.getElementById('mypage-sns-error');
+  errorBox.classList.add('hidden');
+
+  setLoading('sns-save-spinner', true);
+  try {
+    const result = await callApi('changeSnsLink', { newSnsLink });
+    if (result.success) {
+      currentUser.snsLink = result.snsLink;
+      saveSession();
+      document.getElementById('mypage-sns').textContent = currentUser.snsLink || '未登録';
+      cancelSnsEdit();
+      showToast(result.message);
+    } else {
+      errorBox.textContent = result.error;
+      errorBox.classList.remove('hidden');
+    }
+  } catch (e) {
+    errorBox.textContent = '通信エラーが発生しました。';
+    errorBox.classList.remove('hidden');
+  } finally {
+    setLoading('sns-save-spinner', false);
+  }
+}
+
+async function saveSnsLink() {
+  const newSnsLink = document.getElementById('mypage-sns-input').value.trim();
+  await applySnsLinkChange_(newSnsLink);
+}
+
+async function deleteSnsLink() {
+  if (!confirm('SNSの登録を削除しますか？')) return;
+  await applySnsLinkChange_('');
+}
+
+// ===================== 操作説明モーダル =====================
+function openHelpModal() { document.getElementById('help-modal').classList.remove('hidden'); }
+function closeHelpModal() { document.getElementById('help-modal').classList.add('hidden'); }
+
+// ===================== 初期化 =====================
+window.addEventListener('DOMContentLoaded', function () {
+  loadSession();
+  if (currentUser && sessionToken) {
+    showScreen('events');
+  } else {
+    showScreen('login');
+  }
+});
+</script>
+
+</body>
+</html>
