@@ -350,12 +350,45 @@
   </div>
 </div>
 
+<!-- ===================== プラン編集モーダル ===================== -->
+<div id="edit-plan-modal" class="hidden fixed inset-0 z-50 modal-overlay flex items-center justify-center px-4">
+  <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+    <h2 class="text-lg font-bold mb-2">プランを編集</h2>
+    <p class="text-xs text-amber-600 bg-amber-50 rounded-lg p-2 mb-4">編集すると参加者の回答状況はリセットされ、再度回答が必要になります。</p>
+    <input type="hidden" id="edit-plan-match-id">
+
+    <label class="block text-sm mb-1">プランのタイトル<span class="text-red-500">*</span></label>
+    <input id="edit-plan-title" type="text" maxlength="100" class="w-full border rounded-lg px-3 py-2 mb-3">
+
+    <label class="block text-sm mb-1">概要</label>
+    <textarea id="edit-plan-summary" class="w-full border rounded-lg px-3 py-2 mb-3" rows="2"></textarea>
+
+    <label class="block text-sm mb-1">スケジュール</label>
+    <div id="edit-plan-schedule-list" class="space-y-2 mb-2"></div>
+    <button type="button" onclick="addEditScheduleRow()" class="text-xs text-pink-600 hover:underline mb-3">+ 時間を追加</button>
+
+    <label class="block text-sm mb-1">おすすめポイント（任意・カンマ区切り）</label>
+    <input id="edit-plan-highlights" type="text" class="w-full border rounded-lg px-3 py-2 mb-3">
+
+    <label class="block text-sm mb-1">予算目安</label>
+    <input id="edit-plan-budget" type="text" class="w-full border rounded-lg px-3 py-2 mb-4">
+
+    <div id="edit-plan-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg p-2 mb-3"></div>
+    <div class="flex gap-2">
+      <button onclick="closeEditPlanModal()" class="flex-1 border rounded-lg py-2">キャンセル</button>
+      <button onclick="submitEditPlan()" class="flex-1 bg-pink-500 text-white rounded-lg py-2 font-semibold hover:bg-pink-600 flex items-center justify-center gap-2">
+        <span id="edit-plan-spinner" class="spinner hidden" style="width:14px;height:14px;"></span> 保存
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== マッチ成立モーダル ===================== -->
 <div id="match-success-modal" class="hidden fixed inset-0 z-50 modal-overlay flex items-center justify-center px-4">
   <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-center">
     <p class="text-3xl mb-2">🎉</p>
     <h2 class="text-lg font-bold mb-2">マッチが成立しました！</h2>
-    <p class="text-sm text-gray-600 mb-4">参加者全員の「行きたい」が揃いました。連絡用SNSで直接やりとりを始めましょう。</p>
+    <p class="text-sm text-gray-600 mb-4">参加者全員の回答が揃いました。「参加」「検討中」を選んだ方には主催者の連絡用SNSが表示されます。</p>
     <div id="match-success-sns" class="mb-4"></div>
     <button onclick="closeMatchSuccessModal()" class="w-full bg-pink-500 text-white rounded-lg py-2 font-semibold hover:bg-pink-600">閉じる</button>
   </div>
@@ -370,7 +403,8 @@
       <li>仮パスワードでログイン後、マイページから新しいパスワードに変更してください。</li>
       <li>「イベント」から自由に週末の集まりを企画したり、気になるイベントに参加表明できます。</li>
       <li>「イベントマッチ」では、お相手の会員番号（複数人はカンマ区切り）を確認後、「AIにおまかせ」で希望条件からAIにプランを提案してもらうか、「自分で作成」で自分でプランを考えて打診できます。</li>
-      <li>提案されたプランに参加者全員が「行きたい」を押すとマッチが成立し、連絡用SNSが交換できます。</li>
+      <li>提案されたプランには「参加」「検討中」「不参加」の3択で回答できます。不参加以外の全員が回答するとマッチが成立し、「参加」「検討中」を選んだ方に主催者の連絡用SNSが表示されます。</li>
+      <li>自分が提案したプランは、いつでも編集・削除できます。編集すると参加者の回答状況はリセットされます。</li>
     </ol>
     <button onclick="closeHelpModal()" class="w-full bg-pink-500 text-white rounded-lg py-2 font-semibold hover:bg-pink-600 mt-5">閉じる</button>
   </div>
@@ -1060,17 +1094,20 @@ async function generateDatePlan() {
   }
 }
 
+let currentMatches = [];
+
 async function loadMyMatches() {
   const list = document.getElementById('matches-list');
   list.innerHTML = '<p class="text-sm text-gray-400">読み込み中...</p>';
   try {
     const result = await callApi('listMyMatches', {});
     if (!result.success) { list.innerHTML = '<p class="text-sm text-red-500">' + result.error + '</p>'; return; }
-    if (result.matches.length === 0) {
+    currentMatches = result.matches;
+    if (currentMatches.length === 0) {
       list.innerHTML = '<p class="text-sm text-gray-400">まだ提案されたプランはありません。</p>';
       return;
     }
-    list.innerHTML = result.matches.map(renderMatchCard).join('');
+    list.innerHTML = currentMatches.map(renderMatchCard).join('');
   } catch (e) {
     list.innerHTML = '<p class="text-sm text-red-500">通信エラーが発生しました。</p>';
   }
@@ -1093,43 +1130,88 @@ function renderMatchCard(m) {
     ? m.partnerNicknames.map(escHtml).join('、')
     : '不明';
 
-  const snsList = m.status === 'matched'
-    ? m.members.filter(function (mem) { return !mem.isSelf && mem.snsLink; }).map(function (mem) {
-        return '<a href="' + escHtml(mem.snsLink) + '" target="_blank" class="block text-center bg-pink-500 text-white rounded-lg py-2 text-sm font-semibold mb-2">' + escHtml(mem.nickname) + 'さんに連絡する</a>';
-      }).join('')
-    : '';
-
-  const respondButton = m.status === 'matched'
-    ? (snsList || '<p class="text-xs text-gray-400 text-center">SNS未登録の参加者がいます</p>')
-    : '<button onclick="respondToPlan(\'' + m.matchId + '\', true)" class="w-full ' + (m.myWantsToGo ? 'bg-pink-100 text-pink-600' : 'bg-pink-500 text-white') + ' rounded-lg py-2 text-sm font-semibold">' + (m.myWantsToGo ? '行きたい ✓（相手の回答を待っています）' : '行きたい') + '</button>';
-
   const sourceBadge = plan.source === 'manual'
     ? '<span class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full ml-1">手動作成</span>'
     : '';
 
-  return '' +
-    '<div class="bg-white rounded-2xl shadow p-4">' +
-      '<div class="flex justify-between items-start mb-2">' +
-        '<h3 class="font-bold">' + escHtml(plan.title || '遊びプラン') + sourceBadge + '</h3>' +
-        statusBadge +
-      '</div>' +
-      '<p class="text-xs text-gray-400 mb-2">お相手: ' + partnerText + '</p>' +
-      '<p class="text-sm text-gray-600 mb-2">' + escHtml(plan.summary || '') + '</p>' +
-      (schedule ? '<ul class="text-xs text-gray-600 list-disc list-inside mb-2">' + schedule + '</ul>' : '') +
-      (highlights ? '<ul class="text-xs text-pink-600 list-disc list-inside mb-2">' + highlights + '</ul>' : '') +
-      '<p class="text-xs text-gray-400 mb-3">予算目安: ' + escHtml(plan.estimatedBudget || '未定') + '</p>' +
-      respondButton +
+  // 自分の回答ボタン（3択）。提案者自身も他のメンバーがいる体で表示するが、提案者は自動的に「参加」扱い。
+  const statusLabels = { going: '参加', maybe: '検討中', declined: '不参加' };
+  const myStatusLabel = statusLabels[m.myResponseStatus] || '未回答';
+
+  const responseButtons = '' +
+    '<div class="grid grid-cols-3 gap-2">' +
+      '<button onclick="respondToPlan(\'' + m.matchId + '\', \'going\')" class="rounded-lg py-2 text-sm font-semibold ' + (m.myResponseStatus === 'going' ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-pink-50') + '">参加</button>' +
+      '<button onclick="respondToPlan(\'' + m.matchId + '\', \'maybe\')" class="rounded-lg py-2 text-sm font-semibold ' + (m.myResponseStatus === 'maybe' ? 'bg-amber-400 text-white' : 'bg-gray-100 text-gray-600 hover:bg-amber-50') + '">検討中</button>' +
+      '<button onclick="respondToPlan(\'' + m.matchId + '\', \'declined\')" class="rounded-lg py-2 text-sm font-semibold ' + (m.myResponseStatus === 'declined' ? 'bg-gray-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200') + '">不参加</button>' +
     '</div>';
+
+  const ownerSnsBlock = (m.status === 'matched' && m.ownerSnsLink && !m.isOwner)
+    ? '<a href="' + escHtml(m.ownerSnsLink) + '" target="_blank" class="block text-center bg-pink-500 text-white rounded-lg py-2 text-sm font-semibold mb-3">主催者（' + escHtml(m.ownerNickname) + 'さん）に連絡する</a>'
+    : (m.status === 'matched' && !m.isOwner && (m.myResponseStatus === 'going' || m.myResponseStatus === 'maybe')
+        ? '<p class="text-xs text-gray-400 text-center mb-3">主催者はSNS未登録です</p>'
+        : '');
+
+  // 回答状況一覧
+  const responseStatusBadgeClass = { going: 'bg-pink-100 text-pink-600', maybe: 'bg-amber-100 text-amber-700', declined: 'bg-gray-200 text-gray-500' };
+  const membersList = m.members.map(function (mem) {
+    const label = statusLabels[mem.responseStatus] || '未回答';
+    const badgeClass = responseStatusBadgeClass[mem.responseStatus] || 'bg-gray-100 text-gray-400';
+    const ownerTag = mem.isOwner ? '<span class="text-xs text-gray-400 ml-1">（主催者）</span>' : '';
+    return '<div class="flex justify-between items-center py-1 text-sm">' +
+      '<span>' + escHtml(mem.nickname) + (mem.isSelf ? '（自分）' : '') + ownerTag + '</span>' +
+      '<span class="text-xs px-2 py-0.5 rounded-full ' + badgeClass + '">' + label + '</span>' +
+    '</div>';
+  }).join('');
+
+  // 提案者向け：編集・削除リンク
+  const ownerActions = m.isOwner
+    ? '<div class="flex gap-3 text-xs mt-2">' +
+        '<button onclick="openEditPlanModal(\'' + m.matchId + '\')" class="text-pink-600 hover:underline">プランを編集</button>' +
+        '<button onclick="deleteMatchPlan(\'' + m.matchId + '\')" class="text-red-500 hover:underline">プランを削除</button>' +
+      '</div>'
+    : '';
+
+  return '' +
+    '<details class="bg-white rounded-2xl shadow p-4 group">' +
+      '<summary class="cursor-pointer list-none">' +
+        '<div class="flex justify-between items-start gap-2">' +
+          '<h3 class="font-bold">' + escHtml(plan.title || '遊びプラン') + sourceBadge + '</h3>' +
+          '<div class="flex items-center gap-2">' +
+            statusBadge +
+            '<span class="text-gray-400 text-xs transition-transform group-open:rotate-180">▼</span>' +
+          '</div>' +
+        '</div>' +
+        '<p class="text-xs text-gray-400 mt-1">お相手: ' + partnerText + (m.isOwner ? '（あなたが提案）' : '') + '</p>' +
+      '</summary>' +
+
+      '<div class="mt-3 pt-3 border-t">' +
+        '<p class="text-sm text-gray-600 mb-2">' + escHtml(plan.summary || '') + '</p>' +
+        (schedule ? '<ul class="text-xs text-gray-600 list-disc list-inside mb-2">' + schedule + '</ul>' : '') +
+        (highlights ? '<ul class="text-xs text-pink-600 list-disc list-inside mb-2">' + highlights + '</ul>' : '') +
+        '<p class="text-xs text-gray-400 mb-3">予算目安: ' + escHtml(plan.estimatedBudget || '未定') + '</p>' +
+
+        '<p class="text-xs text-gray-500 mb-1">あなたの回答：<span class="font-semibold">' + myStatusLabel + '</span></p>' +
+        responseButtons +
+        ownerSnsBlock +
+
+        '<details class="mt-3">' +
+          '<summary class="text-xs text-gray-500 cursor-pointer hover:underline list-none">▸ 回答状況を見る（' + m.respondedCount + '/' + m.totalCount + '）</summary>' +
+          '<div class="mt-2 pl-1">' + membersList + '</div>' +
+        '</details>' +
+
+        ownerActions +
+      '</div>' +
+    '</details>';
 }
 
-async function respondToPlan(matchId, wantsToGo) {
+async function respondToPlan(matchId, responseStatus) {
   try {
-    const result = await callApi('respondToPlan', { matchId, wantsToGo });
+    const result = await callApi('respondToPlan', { matchId, responseStatus });
     if (result.success) {
       if (result.matched) {
         openMatchSuccessModal(matchId);
       } else {
-        showToast('回答を送信しました。全員の回答が揃うとマッチが成立します。');
+        showToast('回答を送信しました。');
       }
       loadMyMatches();
     } else {
@@ -1137,6 +1219,114 @@ async function respondToPlan(matchId, wantsToGo) {
     }
   } catch (e) {
     showToast('通信エラーが発生しました。');
+  }
+}
+
+async function deleteMatchPlan(matchId) {
+  if (!confirm('このプランを削除しますか？参加者全員から見えなくなります。')) return;
+  try {
+    const result = await callApi('deleteMatchPlan', { matchId });
+    if (result.success) {
+      showToast('プランを削除しました。');
+      loadMyMatches();
+    } else {
+      showToast(result.error);
+    }
+  } catch (e) {
+    showToast('通信エラーが発生しました。');
+  }
+}
+
+function addEditScheduleRow(time, activity) {
+  const list = document.getElementById('edit-plan-schedule-list');
+  const row = document.createElement('div');
+  row.className = 'flex gap-2 edit-schedule-row';
+  row.innerHTML =
+    '<input type="text" class="w-24 border rounded-lg px-2 py-1.5 text-sm edit-schedule-time" placeholder="10:00" value="' + escHtml(time || '') + '">' +
+    '<input type="text" class="flex-1 border rounded-lg px-2 py-1.5 text-sm edit-schedule-activity" placeholder="内容" value="' + escHtml(activity || '') + '">' +
+    '<button type="button" onclick="this.parentElement.remove()" class="text-gray-400 hover:text-red-500 px-1">✕</button>';
+  list.appendChild(row);
+}
+
+function collectEditSchedule_() {
+  const rows = document.querySelectorAll('#edit-plan-schedule-list > div');
+  const schedule = [];
+  rows.forEach(function (row) {
+    const time = row.querySelector('.edit-schedule-time').value.trim();
+    const activity = row.querySelector('.edit-schedule-activity').value.trim();
+    if (time || activity) schedule.push({ time: time, activity: activity });
+  });
+  return schedule;
+}
+
+function openEditPlanModal(matchId) {
+  const m = currentMatches.find(function (x) { return x.matchId === matchId; });
+  if (!m) return;
+  const plan = m.plan || {};
+
+  document.getElementById('edit-plan-match-id').value = matchId;
+  document.getElementById('edit-plan-title').value = plan.title || '';
+  document.getElementById('edit-plan-summary').value = plan.summary || '';
+  document.getElementById('edit-plan-highlights').value = (plan.highlights || []).join(', ');
+  document.getElementById('edit-plan-budget').value = plan.estimatedBudget || '';
+  document.getElementById('edit-plan-error').classList.add('hidden');
+
+  const scheduleList = document.getElementById('edit-plan-schedule-list');
+  scheduleList.innerHTML = '';
+  if (plan.schedule && plan.schedule.length > 0) {
+    plan.schedule.forEach(function (s) { addEditScheduleRow(s.time, s.activity); });
+  } else {
+    addEditScheduleRow();
+  }
+
+  document.getElementById('edit-plan-modal').classList.remove('hidden');
+}
+
+function closeEditPlanModal() {
+  document.getElementById('edit-plan-modal').classList.add('hidden');
+}
+
+async function submitEditPlan() {
+  const matchId = document.getElementById('edit-plan-match-id').value;
+  const errorBox = document.getElementById('edit-plan-error');
+  errorBox.classList.add('hidden');
+
+  const title = document.getElementById('edit-plan-title').value.trim();
+  if (!title) {
+    errorBox.textContent = 'プランのタイトルを入力してください。';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const summary = document.getElementById('edit-plan-summary').value.trim();
+  const budget = document.getElementById('edit-plan-budget').value.trim();
+  const highlightsRaw = document.getElementById('edit-plan-highlights').value.trim();
+  const highlights = highlightsRaw ? highlightsRaw.split(',').map(function (h) { return h.trim(); }).filter(Boolean) : [];
+  const schedule = collectEditSchedule_();
+
+  setLoading('edit-plan-spinner', true);
+  try {
+    const result = await callApi('updateManualPlan', {
+      matchId: matchId,
+      title: title,
+      summary: summary,
+      estimatedBudget: budget,
+      highlights: highlights,
+      schedule: schedule
+    });
+    if (result.success) {
+      showToast(result.message || 'プランを更新しました。');
+      closeEditPlanModal();
+      loadMyMatches();
+    } else {
+      errorBox.textContent = result.error;
+      errorBox.classList.remove('hidden');
+    }
+  } catch (e) {
+    errorBox.textContent = '通信エラーが発生しました。';
+    errorBox.classList.remove('hidden');
+  } finally {
+    setLoading('edit-plan-spinner', false);
   }
 }
 
